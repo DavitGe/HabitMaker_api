@@ -25,10 +25,21 @@ node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
 
 The server connects to MongoDB, creates unique email/user-ID indexes, and listens on `0.0.0.0` using `PORT` (default 4000). Passwords are hashed with scrypt; sessions expire after 30 days.
 
-## Deploy on Railway
+## Deploy on Render (Free)
 
-1. Create a Railway service from this GitHub repository. Leave its root directory at the repository root.
-2. Add service variables:
+In Render, choose **New → Web Service**, connect this GitHub repository, and use:
+
+| Setting | Value |
+| --- | --- |
+| Branch | `main` |
+| Runtime | Node |
+| Root Directory | Leave blank |
+| Build Command | `npm ci` |
+| Start Command | `npm start` |
+| Instance Type | Free |
+| Health Check Path | `/health` |
+
+Add these environment variables before deploying:
 
 | Variable | Value |
 | --- | --- |
@@ -36,15 +47,26 @@ The server connects to MongoDB, creates unique email/user-ID indexes, and listen
 | `MONGODB_DB` | `noexcuse` |
 | `JWT_SECRET` | A unique random secret, at least 32 characters |
 | `CORS_ORIGINS` | Exact comma-separated origins of allowed web frontends (no trailing slash) |
-| `TRUST_PROXY` | `true` when running behind Railway's single trusted proxy |
+| `TRUST_PROXY` | `true` for the hosted service behind Render's proxy |
+| `NODE_ENV` | `production` |
 
-Railway supplies `PORT`. No compilation step is needed. The included `railway.json` sets `npm start` and the `/health` deployment health check. See [Railway configuration documentation](https://docs.railway.com/config-as-code).
+For browser development, `CORS_ORIGINS` can be `http://localhost:8081,http://localhost:19006`. Add your hosted frontend's exact origin when available. Native apps do not send an Origin header.
 
-Allow the service's outbound network access in Atlas, then deploy and generate a public HTTPS domain. `/health` should return `{"status":"ok"}`. The server does not start until its initial MongoDB connection succeeds, so deployment needs valid Atlas credentials and network access.
+Render supplies `PORT`; do not hardcode it in the dashboard. No compilation step is needed. The `package.json` requests Node.js 22.
+
+Alternatively, choose **New → Blueprint** and select this repository. The included `render.yaml` configures a Free web service and generates a session secret. Enter your `MONGODB_URI` when prompted. With the manual Web Service flow, enter the variables yourself; Blueprint values are not automatically imported into a manually created service.
+
+On your Render service page, open **Connect → Outbound**. Add all listed CIDR ranges to your Atlas project's IP Access List, then deploy/redeploy. See [Render outbound IP documentation](https://render.com/docs/outbound-ip-addresses). Your service can use any IP in those ranges.
+
+Open `https://YOUR-SERVICE.onrender.com/health`; it should return `{"status":"ok"}`. The server does not start until its initial MongoDB connection succeeds, so deployment needs valid Atlas credentials and network access. If the first deployment fails while you configure Atlas, redeploy after the IP access list is active.
 
 Set the mobile app's `EXPO_PUBLIC_API_URL` to the generated HTTPS domain and restart/rebuild the mobile app. Native apps do not require a CORS origin. A browser frontend does.
 
-Never commit `.env` or downloaded Atlas credential files. `.env.example` contains placeholders only. Keep secrets in Railway's service variables.
+Never commit `.env` or downloaded Atlas credential files. `.env.example` contains placeholders only. Keep secrets in Render's environment variables.
+
+Free web services sleep after 15 minutes without inbound traffic and take about a minute to wake. The mobile app currently times out requests after 15 seconds: if a request fails during wake-up, open `/health`, wait for it to respond, and retry in the app. Habit data stays in MongoDB when the API sleeps or restarts. See [Render Free plan limitations](https://render.com/docs/free).
+
+Render setup references: [Node/Express deployment](https://render.com/docs/deploy-node-express-app), [Blueprint configuration](https://render.com/docs/blueprint-spec). The optional `railway.json` can be ignored on Render.
 
 ## Endpoints
 
