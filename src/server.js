@@ -1,0 +1,11 @@
+import { MongoClient } from 'mongodb';
+import { createApp } from './app.js';
+const { MONGODB_URI, JWT_SECRET, MONGODB_DB = 'noexcuse', PORT = '4000', CORS_ORIGINS = '', TRUST_PROXY } = process.env;
+if (!MONGODB_URI || !JWT_SECRET || JWT_SECRET.length < 32 || JWT_SECRET.startsWith('replace-')) throw new Error('Set MONGODB_URI and a unique JWT_SECRET (32+ characters) in apps/api/.env.');
+const client = new MongoClient(MONGODB_URI, { maxPoolSize: 5, serverSelectionTimeoutMS: 10000 });
+await client.connect();
+const users = client.db(MONGODB_DB).collection('users');
+await users.createIndex({ email: 1 }, { unique: true });
+await users.createIndex({ id: 1 }, { unique: true });
+const server = createApp({ users, secret: JWT_SECRET, origins: CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean), trustProxy: TRUST_PROXY === 'true' }).listen(Number(PORT), '0.0.0.0', () => console.log(`NoExcuse API listening on ${PORT}`));
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { server.close(async () => { await client.close(); process.exit(0); }); });
